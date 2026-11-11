@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asotransmar C.A. - Sistema de Gestión de Transporte Marítimo</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+</head>
+<body>
+
+  <!-- ================================================================== -->
+  <!-- PANTALLA DE LOGIN                                                    -->
+  <!-- ================================================================== -->
+  <div id="login-screen">
+    <div class="login-card">
+      <div class="login-logo">⚓</div>
+      <h1 class="login-company">ASOTRANSMAR C.A.</h1>
+      <p class="login-subtitle">Sistema de Gestión de Transporte Marítimo</p>
+      <p class="login-rif">RIF: J-315369986-9</p>
+
+      <div class="login-form">
+        <input
+          type="text"
+          id="login-user"
+          placeholder="Usuario"
+          autocomplete="username"
+        />
+        <input
+          type="password"
+          id="login-pass"
+          placeholder="Contraseña"
+          autocomplete="current-password"
+        />
+        <button id="btn-login">Iniciar Sesión</button>
+        <div id="login-error"></div>
+      </div>
+
+      <small class="login-hint">
+        Admin: admin/admin123 | Taquilla: taquilla1/taq123
+      </small>
+    </div>
+  </div>
+
+  <!-- ================================================================== -->
+  <!-- APLICACIÓN PRINCIPAL                                                -->
+  <!-- ================================================================== -->
+  <div id="main-app" style="display: none;">
+
+    <!-- ────────────────────────────────────────────────────────────────── -->
+    <!-- ENCABEZADO                                                        -->
+    <!-- ────────────────────────────────────────────────────────────────── -->
+    <header id="app-header">
+      <!-- Sección izquierda: identidad de la empresa -->
+      <div class="header-left">
+        <span class="header-company">ASOTRANSMAR C.A.</span>
+        <span class="header-rif">RIF: J-315369986-9</span>
+        <span class="header-ruta">Ruta: La Isleta ↔ Coche</span>
+      </div>
+
+      <!-- Sección central: fecha, buque y zarpe -->
+      <div class="header-center">
+        <span id="header-fecha"></span>
+        <span>Buque en turno: <strong id="buque-activo">—</strong></span>
+        <span>Próximo zarpe: <strong id="proximo-zarpe">—</strong></span>
+      </div>
+
+      <!-- Sección derecha: tasa BCV, usuario y cierre de sesión -->
+      <div class="header-right">
+        <div class="header-bcv">
+          <span>Tasa BCV:</span>
+          <span id="tasa-bcv-display">0,00</span>
+          <span class="admin-only bcv-edit">
+            <input
+              type="number"
+              id="tasa-bcv-input"
+              step="0.01"
+              min="0"
+              placeholder="0.00"
+            />
+            <button id="btn-guardar-tasa" title="Guardar tasa BCV">💾</button>
+          </span>
+        </div>
+        <div class="header-user">
+          <span id="user-info"></span>
+          <span id="user-rol" class="badge"></span>
+        </div>
+        <button id="btn-logout">Cerrar Sesión</button>
+      </div>
+    </header>
+
+    <!-- ────────────────────────────────────────────────────────────────── -->
+    <!-- BARRA DE BÚSQUEDA GLOBAL                                          -->
+    <!-- ────────────────────────────────────────────────────────────────── -->
+    <div id="search-bar-global">
+      <input
+        type="text"
+        id="search-global-input"
+        placeholder="🔍 Buscar por Cédula, Nombre, Apellido o Fecha..."
+      />
+      <div id="search-global-results" style="display: none;"></div>
+    </div>
+
+    <!-- ────────────────────────────────────────────────────────────────── -->
+    <!-- NAVEGACIÓN PRINCIPAL                                              -->
+    <!-- ────────────────────────────────────────────────────────────────── -->
+    <nav id="main-nav">
+      <button class="nav-btn active" data-section="dashboard">📊 Inicio</button>
+      <button class="nav-btn" data-section="venta">🎫 Venta de Boletos</button>
+      <button class="nav-btn" data-section="listin">📋 Listín de Zarpe</button>
+      <button class="nav-btn" data-section="busqueda">🔍 Historial</button>
+      <button class="nav-btn admin-only" data-section="admin">⚙️ Administración</button>
+    </nav>
+
+    <!-- ────────────────────────────────────────────────────────────────── -->
+    <!-- ÁREA DE CONTENIDO                                                 -->
+    <!-- ────────────────────────────────────────────────────────────────── -->
+    <main id="content">
+
+      <!-- ============================================================== -->
+      <!-- SECCIÓN: DASHBOARD (INICIO)                                     -->
+      <!-- ============================================================== -->
+      <section id="sec-dashboard">
+        <!-- Tarjetas resumen -->
+        <div class="dashboard-cards">
+          <div class="summary-card card-zarpes" id="card-zarpes-hoy">
+            <div class="card-icon">🚢</div>
+            <div class="card-value">0</div>
+            <div class="card-label">Zarpes Hoy</div>
+          </div>
+          <div class="summary-card card-pasajeros" id="card-pasajeros-hoy">
+            <div class="card-icon">👥</div>
+            <div class="card-value">0</div>
+            <div class="card-label">Pasajeros Hoy</div>
+          </div>
+          <div class="summary-card card-recaudacion" id="card-recaudacion-hoy">
+            <div class="card-icon">💰</div>
+            <div class="card-value">0,00</div>
+            <div class="card-label">Recaudación VES</div>
+          </div>
+          <div class="summary-card card-buque" id="card-buque-turno">
+            <div class="card-icon">⚓</div>
+            <div class="card-value">—</div>
+            <div class="card-label">Buque en Turno</div>
+          </div>
+        </div>
+
+        <!-- Horarios del día -->
+        <div id="dash-horarios-hoy">
+          <h3>Horarios del Día</h3>
+          <table class="table-horarios">
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>Origen</th>
+                <th>Destino</th>
+                <th>Embarcación</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="horarios-hoy-body">
+              <!-- Generado dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============================================================== -->
+      <!-- SECCIÓN: VENTA DE BOLETOS                                       -->
+      <!-- ============================================================== -->
+      <section id="sec-venta" style="display: none;">
+        <h2>🎫 Venta de Boletos</h2>
+
+        <div class="venta-grid">
+          <!-- Columna izquierda: formulario de venta -->
+          <div class="venta-form-col">
+            <div class="form-group">
+              <label for="venta-zarpe-select">Zarpe Disponible</label>
+              <select id="venta-zarpe-select">
+                <option value="">— Seleccione un zarpe —</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="venta-cedula">Cédula de Identidad</label>
+              <input
+                type="text"
+                id="venta-cedula"
+                placeholder="V-12345678"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="venta-nombre">Nombre</label>
+              <input type="text" id="venta-nombre" placeholder="Nombre" />
+            </div>
+
+            <div class="form-group">
+              <label for="venta-apellido">Apellido</label>
+              <input type="text" id="venta-apellido" placeholder="Apellido" />
+            </div>
+
+            <div class="form-group">
+              <label for="venta-categoria">Categoría</label>
+              <select id="venta-categoria">
+                <option value="REG">Regular</option>
+                <option value="MPR">Medio Pasaje Residencial</option>
+                <option value="MPV">Medio Pasaje Vejez</option>
+                <option value="EXO">Exonerado</option>
+              </select>
+            </div>
+
+            <div class="tarifa-display">
+              <div class="tarifa-item">
+                <span class="tarifa-label">Monto USD</span>
+                <span id="venta-monto-usd" class="tarifa-valor usd">$0.00</span>
+              </div>
+              <div class="tarifa-item">
+                <span class="tarifa-label">Monto VES</span>
+                <span id="venta-monto-ves" class="tarifa-valor ves">Bs. 0,00</span>
+              </div>
+            </div>
+
+            <button id="btn-vender">✅ Registrar Venta</button>
+          </div>
+
+          <!-- Columna derecha: confirmación y resumen -->
+          <div class="venta-confirm-col">
+            <div id="venta-confirmacion">
+              <p class="empty-state">Aún no se ha registrado ningún boleto.</p>
+            </div>
+            <div id="venta-resumen-zarpe">
+              <p class="empty-state">Seleccione un zarpe para ver el resumen.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================== -->
+      <!-- SECCIÓN: LISTÍN DIGITAL DE ZARPE                                -->
+      <!-- ============================================================== -->
+      <section id="sec-listin" style="display: none;">
+        <h2>📋 Listín Digital de Zarpe</h2>
+
+        <div class="form-group">
+          <label for="listin-zarpe-select">Seleccionar Zarpe</label>
+          <select id="listin-zarpe-select">
+            <option value="">— Seleccione un zarpe —</option>
+          </select>
+        </div>
+
+        <div id="listin-container">
+          <!-- Encabezado imprimible -->
+          <div id="listin-header-print">
+            <h2>ASOTRANSMAR C.A.</h2>
+            <p>RIF: J-315369986-9</p>
+            <p>Ruta: La Isleta ↔ Coche</p>
+            <div class="listin-meta">
+              <p>Fecha: <span id="listin-fecha">—</span></p>
+              <p>Hora de Zarpe: <span id="listin-hora">—</span></p>
+              <p>Origen: <span id="listin-origen">—</span></p>
+              <p>Destino: <span id="listin-destino">—</span></p>
+              <p>Embarcación: <span id="listin-embarcacion">—</span></p>
+              <p>Taquillero: <span id="listin-taquillero">—</span></p>
+              <p>Estado: <span id="listin-estado" class="badge">—</span></p>
+              <p>Capitán: <input type="text" id="listin-capitan" placeholder="Nombre del capitán" /></p>
+            </div>
+          </div>
+
+          <!-- Tabla del listín -->
+          <table id="listin-tabla">
+            <thead>
+              <tr>
+                <th>N°</th>
+                <th>Cédula</th>
+                <th>Nombre</th>
+                <th>Apellido</th>
+                <th>Categoría</th>
+                <th>Monto</th>
+              </tr>
+            </thead>
+            <tbody id="listin-tabla-body">
+              <!-- Generado dinámicamente -->
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="4">TOTALES</td>
+                <td><span id="listin-total-pasajeros">0</span> pasajeros</td>
+                <td><span id="listin-total-monto">0,00</span></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- Botones de acción -->
+        <div class="listin-actions">
+          <button id="btn-imprimir-listin" class="btn-print">🖨️ Imprimir Listín</button>
+          <button id="btn-cerrar-zarpe" class="btn-danger">🔒 Cerrar Zarpe</button>
+        </div>
+      </section>
+
+      <!-- ============================================================== -->
+      <!-- SECCIÓN: HISTORIAL / BÚSQUEDA DE PASAJEROS                     -->
+      <!-- ============================================================== -->
+      <section id="sec-busqueda" style="display: none;">
+        <h2>🔍 Historial de Pasajeros</h2>
+
+        <input
+          type="text"
+          id="busqueda-input"
+          placeholder="Buscar por Cédula, Nombre, Apellido o Fecha..."
+        />
+
+        <div id="busqueda-filtros">
+          <div class="filtro-group">
+            <label for="busqueda-fecha-desde">Desde</label>
+            <input type="date" id="busqueda-fecha-desde" />
+          </div>
+          <div class="filtro-group">
+            <label for="busqueda-fecha-hasta">Hasta</label>
+            <input type="date" id="busqueda-fecha-hasta" />
+          </div>
+          <button id="btn-buscar">Buscar</button>
+        </div>
+
+        <table id="busqueda-tabla">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Hora</th>
+              <th>Cédula</th>
+              <th>Nombre</th>
+              <th>Apellido</th>
+              <th>Categoría</th>
+              <th>Embarcación</th>
+              <th>Ruta</th>
+              <th>Monto VES</th>
+            </tr>
+          </thead>
+          <tbody id="busqueda-tabla-body">
+            <!-- Generado dinámicamente -->
+          </tbody>
+        </table>
+
+        <div id="busqueda-stats">
+          <span>Total resultados: 0</span>
+        </div>
+      </section>
+
+      <!-- ============================================================== -->
+      <!-- SECCIÓN: ADMINISTRACIÓN                                         -->
+      <!-- ============================================================== -->
+      <section id="sec-admin" style="display: none;">
+        <h2>⚙️ Panel de Administración</h2>
+
+        <div class="admin-grid">
+          <!-- Panel 1: Configuración de Tarifas -->
+          <div class="admin-panel">
+            <h3>Configuración de Tarifas</h3>
+
+            <div class="form-group">
+              <label for="admin-tasa-bcv">Tasa BCV (VES/USD)</label>
+              <input type="number" id="admin-tasa-bcv" step="0.01" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label for="admin-tarifa-reg">Tarifa Regular (USD)</label>
+              <input type="number" id="admin-tarifa-reg" step="0.01" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label for="admin-tarifa-medio">Medio Pasaje (USD)</label>
+              <input type="number" id="admin-tarifa-medio" step="0.01" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label for="admin-tarifa-exo">Exonerado (USD)</label>
+              <input type="number" id="admin-tarifa-exo" step="0.01" min="0" />
+            </div>
+
+            <div class="form-group">
+              <label for="admin-retencion">Retención Asotransmar (%)</label>
+              <input type="number" id="admin-retencion" step="0.1" min="0" max="100" />
+            </div>
+
+            <div class="form-group">
+              <label for="admin-arancel-inea">Arancel INEA por pasajero (USD)</label>
+              <input type="number" id="admin-arancel-inea" step="0.01" min="0" />
+            </div>
+
+            <button id="btn-guardar-config">💾 Guardar Configuración</button>
+          </div>
+
+          <!-- Panel 2: Liquidación de Armadores -->
+          <div class="admin-panel">
+            <h3>Liquidación de Armadores</h3>
+
+            <div class="form-group">
+              <label for="admin-liquidacion-fecha">Fecha</label>
+              <select id="admin-liquidacion-fecha">
+                <option value="">— Seleccione fecha —</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="admin-liquidacion-zarpe">Seleccionar Zarpe</label>
+              <select id="admin-liquidacion-zarpe">
+                <option value="">— Seleccione zarpe —</option>
+              </select>
+            </div>
+
+            <button id="btn-calcular-liquidacion">📊 Calcular Liquidación</button>
+
+            <div id="admin-liquidacion-result">
+              <p class="empty-state">Seleccione un zarpe para calcular la liquidación.</p>
+            </div>
+
+            <button id="btn-imprimir-liquidacion" class="btn-print" style="display: none;">
+              🖨️ Imprimir Liquidación
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ================================================================== -->
+  <!-- SCRIPTS                                                             -->
+  <!-- ================================================================== -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+  <script src="js/config.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/schedules.js"></script>
+  <script src="js/sales.js"></script>
+  <script src="js/manifest.js"></script>
+  <script src="js/search.js"></script>
+  <script src="js/settlement.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
