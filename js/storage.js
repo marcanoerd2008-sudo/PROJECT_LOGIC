@@ -100,6 +100,13 @@ ASOTRANSMAR.Storage = (function () {
     if (!users || !Array.isArray(users) || users.length === 0) {
       users = JSON.parse(JSON.stringify(Config.USUARIOS_DEFAULT));
       set(Config.KEYS.USERS, users);
+      return users;
+    }
+    // Asegurar que siempre exista al menos el usuario admin por defecto
+    var hasAdmin = users.some(function(u) { return u.usuario === 'admin'; });
+    if (!hasAdmin) {
+      users.unshift(Config.USUARIOS_DEFAULT[0]);
+      set(Config.KEYS.USERS, users);
     }
     return users;
   }
@@ -125,6 +132,9 @@ ASOTRANSMAR.Storage = (function () {
     var tickets = getTickets();
     tickets.push(ticket);
     set(Config.KEYS.TICKETS, tickets);
+    if (window.ASOTRANSMAR && ASOTRANSMAR.DB && typeof ASOTRANSMAR.DB.saveTicket === 'function') {
+      ASOTRANSMAR.DB.saveTicket(ticket);
+    }
   }
 
   /**
@@ -238,6 +248,9 @@ ASOTRANSMAR.Storage = (function () {
     }
 
     set(Config.KEYS.ZARPES, zarpes);
+    if (window.ASOTRANSMAR && ASOTRANSMAR.DB && typeof ASOTRANSMAR.DB.saveZarpe === 'function') {
+      ASOTRANSMAR.DB.saveZarpe(zarpe);
+    }
   }
 
   /**

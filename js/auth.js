@@ -73,11 +73,13 @@ ASOTRANSMAR.Auth = (function () {
       return { success: false, message: 'Debe ingresar usuario y contraseña' };
     }
 
+    var cleanUser = String(usuario).trim().toLowerCase();
+    var cleanPass = String(clave).trim();
     var users = Storage.getUsers();
     var found = null;
 
     for (var i = 0; i < users.length; i++) {
-      if (users[i].usuario === usuario && users[i].clave === clave) {
+      if (users[i].usuario.toLowerCase() === cleanUser && users[i].clave === cleanPass) {
         found = users[i];
         break;
       }

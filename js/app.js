@@ -22,6 +22,25 @@ ASOTRANSMAR.App = {
    *  Ejecutado al cargar el DOM (DOMContentLoaded)
    * ------------------------------------------------------ */
   init() {
+    // Inicializar tema visual (Modo Oscuro / Claro)
+    this.initTheme();
+
+    // Inicializar motor relacional SQLite WebAssembly en segundo plano
+    if (window.ASOTRANSMAR && ASOTRANSMAR.DB) {
+      ASOTRANSMAR.DB.init().then(() => {
+        if (ASOTRANSMAR.Settlement && typeof ASOTRANSMAR.Settlement.updateSqliteStats === 'function') {
+          ASOTRANSMAR.Settlement.updateSqliteStats();
+        }
+      }).catch((e) => {
+        console.warn('[SQLite] Inicialización en segundo plano:', e);
+      });
+    }
+
+    // Asegurar carga de datos reales y manifiestos de la flota
+    if (window.ASOTRANSMAR && ASOTRANSMAR.Seed) {
+      ASOTRANSMAR.Seed.init();
+    }
+
     // Verificar si hay una sesión activa
     var user = ASOTRANSMAR.Auth.init();
     if (user) {
@@ -50,6 +69,44 @@ ASOTRANSMAR.App = {
         if (e.key === 'Enter') this.handleLogin();
       });
     }
+  },
+
+  /* --------------------------------------------------------
+   *  initTheme() & applyTheme()
+   *  Control de Modo Oscuro / Modo Claro
+   * ------------------------------------------------------ */
+  initTheme() {
+    var savedTheme = localStorage.getItem(ASOTRANSMAR.Config.KEYS.THEME) || 'dark';
+    this.applyTheme(savedTheme);
+
+    var toggleBtn = document.getElementById('btn-theme-toggle');
+    if (toggleBtn) {
+      toggleBtn.onclick = () => {
+        var isDark = document.body.classList.contains('dark-theme');
+        var next = isDark ? 'light' : 'dark';
+        this.applyTheme(next);
+      };
+    }
+  },
+
+  applyTheme(theme) {
+    var toggleBtn = document.getElementById('btn-theme-toggle');
+    if (theme === 'dark') {
+      document.body.classList.add('dark-theme');
+      document.body.classList.remove('light-theme');
+      if (toggleBtn) {
+        toggleBtn.innerHTML = '☀️ <span class="theme-label">Claro</span>';
+        toggleBtn.setAttribute('title', 'Cambiar a Modo Claro');
+      }
+    } else {
+      document.body.classList.remove('dark-theme');
+      document.body.classList.add('light-theme');
+      if (toggleBtn) {
+        toggleBtn.innerHTML = '🌙 <span class="theme-label">Oscuro</span>';
+        toggleBtn.setAttribute('title', 'Cambiar a Modo Oscuro');
+      }
+    }
+    localStorage.setItem(ASOTRANSMAR.Config.KEYS.THEME, theme);
   },
 
   /* --------------------------------------------------------
@@ -318,33 +375,41 @@ ASOTRANSMAR.App = {
       tbody.innerHTML = '';
 
       if (schedule && schedule.length > 0) {
+        var todayTickets = ASOTRANSMAR.Storage.getTicketsByFecha(today);
+
         schedule.forEach(function(dep) {
           var tr = document.createElement('tr');
 
           // Determinar clase y texto del estado
           var statusClass, statusText;
           if (dep.estado === 'cerrado') {
-            statusClass = 'badge-cerrado';
-            statusText = 'Cerrado';
+            statusClass = 'badge-danger';
+            statusText = '🔒 Cerrado';
           } else if (dep.estado === 'proximo') {
-            statusClass = 'badge-proximo';
-            statusText = 'Próximo';
+            statusClass = 'badge-warning';
+            statusText = '⏱️ Próximo';
           } else {
-            statusClass = 'badge-abierto';
-            statusText = 'Abierto';
+            statusClass = 'badge-success';
+            statusText = '🟢 Abierto';
           }
 
+          var zarpeTickets = todayTickets.filter(function(t) { return t.zarpeId === dep.id; });
+          var aforoCount = zarpeTickets.length;
+          var aforoMax = dep.capacidad_max || 160;
+          var aforoBadge = aforoCount >= 160 ? 'badge-danger' : (aforoCount >= 120 ? 'badge-warning' : 'badge-info');
+
           tr.innerHTML = '' +
-            '<td>' + dep.hora + '</td>' +
+            '<td><strong>' + dep.hora + '</strong></td>' +
             '<td>' + dep.origen + '</td>' +
             '<td>' + dep.destino + '</td>' +
             '<td><strong>' + dep.embarcacion + '</strong></td>' +
+            '<td><span class="badge ' + aforoBadge + '">' + aforoCount + ' / ' + aforoMax + ' pax</span></td>' +
             '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>';
           tbody.appendChild(tr);
         });
       } else {
         var tr = document.createElement('tr');
-        tr.innerHTML = '<td colspan="5" class="text-center text-muted">No hay zarpes programados para hoy</td>';
+        tr.innerHTML = '<td colspan="6" class="text-center text-muted">No hay zarpes programados para hoy</td>';
         tbody.appendChild(tr);
       }
     }
@@ -418,8 +483,17 @@ ASOTRANSMAR.App = {
         var displayEl = document.getElementById('tasa-bcv-display');
         if (displayEl) displayEl.textContent = newRate.toFixed(2);
 
-        ASOTRANSMAR.Utils.showToast('Tasa BCV actualizada: ' + newRate.toFixed(2), 'success');
+        if (ASOTRANSMAR.Sales && typeof ASOTRANSMAR.Sales.updateTarifa === 'function') {
+          ASOTRANSMAR.Sales.updateTarifa();
+        }
+        ASOTRANSMAR.Utils.showToast('Tasa BCV actualizada a ' + newRate.toFixed(2) + ' VES/USD', 'success');
       });
+
+      input.onkeypress = function(e) {
+        if (e.key === 'Enter') {
+          nuevoBtn.click();
+        }
+      };
     } else {
       // Taquillero: deshabilitar edición
       input.disabled = true;

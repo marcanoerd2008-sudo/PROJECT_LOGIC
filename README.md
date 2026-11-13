@@ -48,18 +48,34 @@ Aplicación Web de Página Única (**SPA**) moderna, ultraligera y modular, dise
 ### 3. Venta y Desglose Tarifario en Tiempo Real
 - Formulario ágil: Cédula de Identidad, Nombre y Apellido.
 - Categorías:
-  - **REG** (Regular): 100% tarifa base.
-  - **MPR** (Medio Pasaje Residencial): 50% tarifa base.
-  - **MPV** (Medio Pasaje Vejez): 50% tarifa base.
-  - **EXO** (Exonerado): 0% tarifa base.
+  - **REG** (Regular): 100% tarifa base ($5.00 USD).
+  - **MPR** (Medio Pasaje Residencial / Estudiantil): 50% tarifa base ($2.50 USD).
+  - **MPV** (Medio Pasaje Vejez): 50% tarifa base ($2.50 USD).
+  - **TUR** (Visitante / Turista): Tarifa diferenciada ($5.00 USD).
+  - **EXO** (Exonerado): 0% tarifa base ($0.00 USD).
 - Conversión instantánea a Bolívares (VES) multiplicando estrictamente por la Tasa BCV configurada.
-- Generación de comprobante digital tipo recibo tras cada venta.
+- Generación de comprobante digital tipo recibo térmico con código QR tras cada venta.
 
-### 4. Listín Digital de Zarpe (Manifiesto de Embarque)
+### 4. Listín Digital de Zarpe y Control de Aforo INEA
 - Numeración correlativa automática (N° 1, 2, 3...) de los pasajeros a bordo.
-- Encabezado institucional con datos de la empresa, ruta, buque activo, hora, taquillero y campo para capitán.
+- Límite normativo reglamentario del INEA: **160 pasajeros máximos** por embarcación.
+- Supervisión institucional en vivo del aforo con barra de progreso dinámica (verde, ámbar, rojo).
+- Encabezado institucional con datos de la empresa, ruta, buque activo, matrícula, capitán titular, taquillero y sello de certificación.
 - Cierre operativo del zarpe con bloqueo de nuevas ventas.
 - Exportación e impresión directa a formato PDF con `html2pdf.js` optimizada para la Capitanía de Puerto.
+
+### 5. Base de Datos Relacional SQLite Offline-First (sql.js WebAssembly)
+- Motor SQL relacional ejecutado 100% en el navegador vía WebAssembly (`sql-wasm.wasm`).
+- Esquema de 5 tablas relacionales: `usuarios`, `configuracion`, `embarcaciones`, `zarpes`, `boletos`.
+- Sincronización bidireccional automática con almacenamiento local (`localStorage`).
+- Botones de exportación (`.sqlite`) e importación directa para auditoría y respaldo.
+
+### 6. Flota Real Oficial y Pre-carga Verídica (Seeder)
+- Flota titular con capitanes registrados y matrículas oficiales:
+  - **Madhery** (`ARSH-PE-0941`) — Cap. José Marcano
+  - **Isabel María** (`ARSH-PE-0824`) — Cap. Luis Villazana
+  - **Júbilo Azul** (`ARSH-PE-1102`) — Cap. Rafael Salazar
+- Carga automática inicial de pasajeros venezolanos verídicos, cédulas reales y métodos de pago multimétodo (Pago Móvil, POS, Efectivo VES, Divisas USD).
 
 ### 5. Barra de Búsqueda Global (La Lupa 🔍)
 - Desplegable de búsqueda en vivo en la cabecera por Cédula, Nombre, Apellido o Fecha.
@@ -80,18 +96,25 @@ Asotransmar vs 4.0/
 ├── index.html              # Interfaz SPA completa y estructura semántica
 ├── README.md               # Documentación operativa del sistema
 ├── css/
-│   └── styles.css          # Diseño marítimo institucional, responsive y reglas de impresión
+│   └── styles.css          # Diseño espacial/glassmorphism, modo claro/oscuro, responsive
 ├── js/
+│   ├── vendor/             # Librerías 100% locales (Offline-First)
+│   │   ├── sql-wasm.js     # Motor SQLite WebAssembly
+│   │   ├── sql-wasm.wasm   # Binario WebAssembly compilado
+│   │   ├── qrcode.min.js   # Generador de códigos QR para boletos
+│   │   └── html2pdf.min.js # Exportador PDF de listines y liquidaciones
 │   ├── config.js           # Constantes, tarifas, horarios oficiales y rotación de flota
+│   ├── db.js               # Gestor de base de datos relacional SQLite (sql.js)
 │   ├── storage.js          # Capa de persistencia en localStorage con manejo de claves
 │   ├── utils.js            # Formato de fechas en español, monedas USD/VES, IDs y toasts
 │   ├── auth.js             # Autenticación, control de sesiones y RBAC
-│   ├── schedules.js        # Motor matemático de cálculo de rotación y asignación de buques
-│   ├── sales.js            # Módulo de taquilla, emisión de boletos y recibos
-│   ├── manifest.js         # Listín digital de zarpe, manifiesto y exportación a PDF
+│   ├── schedules.js        # Motor matemático de rotación y asignación de buques
+│   ├── sales.js            # Módulo de taquilla, emisión de boletos y recibos térmicos QR
+│   ├── manifest.js         # Listín digital de zarpe, aforo INEA (160 pax) y exportación PDF
 │   ├── search.js           # Motor de búsqueda global con debounce y filtros avanzados
 │   ├── settlement.js       # Liquidación a armadores, deducciones INEA/Asotransmar y tarifas
-│   └── app.js              # Controlador principal, ciclo de vida y navegación SPA
+│   ├── seed.js             # Generador automático de flota real y pasajeros venezolanos
+│   └── app.js              # Controlador principal, ciclo de vida, tema y navegación SPA
 └── assets/                 # Recursos gráficos adicionales
 ```
 

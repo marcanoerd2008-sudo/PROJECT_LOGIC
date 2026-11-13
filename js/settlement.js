@@ -58,6 +58,60 @@ ASOTRANSMAR.Settlement = {
       this._onImprimir = () => this.imprimirLiquidacion();
       btnImprimir.addEventListener('click', this._onImprimir);
     }
+
+    // SQLite Controls
+    var btnSqliteExport = document.getElementById('btn-sqlite-export');
+    if (btnSqliteExport) {
+      btnSqliteExport.onclick = () => {
+        if (window.ASOTRANSMAR && ASOTRANSMAR.DB) {
+          ASOTRANSMAR.DB.exportDatabaseFile();
+        }
+      };
+    }
+
+    var fileSqliteInput = document.getElementById('sqlite-file-input');
+    if (fileSqliteInput) {
+      fileSqliteInput.onchange = (e) => {
+        var file = e.target.files[0];
+        if (file && window.ASOTRANSMAR && ASOTRANSMAR.DB) {
+          ASOTRANSMAR.DB.importDatabaseFile(file).then(() => {
+            this.updateSqliteStats();
+            this.populateLiquidacionDates();
+          });
+        }
+      };
+    }
+
+    var btnSqliteSync = document.getElementById('btn-sqlite-sync');
+    if (btnSqliteSync) {
+      btnSqliteSync.onclick = () => {
+        if (window.ASOTRANSMAR && ASOTRANSMAR.DB) {
+          ASOTRANSMAR.DB.syncFromStorage();
+          this.updateSqliteStats();
+          ASOTRANSMAR.Utils.showToast('Sincronización con SQLite completada', 'success');
+        }
+      };
+    }
+
+    this.updateSqliteStats();
+  },
+
+  updateSqliteStats() {
+    if (!window.ASOTRANSMAR || !ASOTRANSMAR.DB) return;
+    var stats = ASOTRANSMAR.DB.getStats();
+    var statTickets = document.getElementById('sqlite-stat-tickets');
+    var statZarpes = document.getElementById('sqlite-stat-zarpes');
+    var statSize = document.getElementById('sqlite-stat-size');
+    var statusDisplay = document.getElementById('sqlite-status-display');
+
+    if (statTickets) statTickets.textContent = stats.tickets;
+    if (statZarpes) statZarpes.textContent = stats.zarpes;
+    if (statSize) statSize.textContent = stats.sizeKb + ' KB';
+    if (statusDisplay) {
+      statusDisplay.textContent = stats.active
+        ? '🟢 Motor SQLite 3 (WebAssembly) Activo y Persistente'
+        : '🟡 SQLite Inicializando / Modo Almacenamiento Local';
+    }
   },
 
   /* --------------------------------------------------------
@@ -71,22 +125,30 @@ ASOTRANSMAR.Settlement = {
     var elTasa = document.getElementById('admin-tasa-bcv');
     var elTarifaReg = document.getElementById('admin-tarifa-reg');
     var elTarifaMedio = document.getElementById('admin-tarifa-medio');
+    var elTarifaTur = document.getElementById('admin-tarifa-tur');
     var elTarifaExo = document.getElementById('admin-tarifa-exo');
     var elRetencion = document.getElementById('admin-retencion');
     var elArancel = document.getElementById('admin-arancel-inea');
+    var elAforoMax = document.getElementById('admin-aforo-max');
 
     if (elTasa) elTasa.value = settings.tasa_bcv || 0;
     if (elTarifaReg) elTarifaReg.value = settings.tarifa_reg_usd || 0;
 
-    // Calcular tarifas de medio pasaje y exonerado basadas en la tarifa regular y factores
+    // Calcular tarifas de medio pasaje, turista y exonerado basadas en la tarifa regular y factores
     var categorias = ASOTRANSMAR.Config.CATEGORIAS;
     var catMedio = categorias.find(function(c) { return c.codigo === 'medio'; });
+    var catTur = categorias.find(function(c) { return c.codigo === 'turista'; });
     var catExo = categorias.find(function(c) { return c.codigo === 'exonerado'; });
 
     if (elTarifaMedio) {
       var tarifaMedio = settings.tarifa_medio_usd !== undefined ? settings.tarifa_medio_usd :
         (settings.tarifa_reg_usd || 0) * (catMedio ? catMedio.factor : 0.5);
       elTarifaMedio.value = tarifaMedio;
+    }
+    if (elTarifaTur) {
+      var tarifaTur = settings.tarifa_tur_usd !== undefined ? settings.tarifa_tur_usd :
+        (settings.tarifa_reg_usd || 0) * (catTur ? catTur.factor : 1.0);
+      elTarifaTur.value = tarifaTur;
     }
     if (elTarifaExo) {
       var tarifaExo = settings.tarifa_exo_usd !== undefined ? settings.tarifa_exo_usd :
@@ -96,6 +158,7 @@ ASOTRANSMAR.Settlement = {
 
     if (elRetencion) elRetencion.value = settings.retencion_asotransmar || 0;
     if (elArancel) elArancel.value = settings.arancel_inea || 0;
+    if (elAforoMax) elAforoMax.value = settings.capacidad_max_inea || 160;
   },
 
   /* --------------------------------------------------------
@@ -106,18 +169,22 @@ ASOTRANSMAR.Settlement = {
     var tasa = parseFloat((document.getElementById('admin-tasa-bcv') || {}).value);
     var tarifaReg = parseFloat((document.getElementById('admin-tarifa-reg') || {}).value);
     var tarifaMedio = parseFloat((document.getElementById('admin-tarifa-medio') || {}).value);
+    var tarifaTur = parseFloat((document.getElementById('admin-tarifa-tur') || {}).value);
     var tarifaExo = parseFloat((document.getElementById('admin-tarifa-exo') || {}).value);
     var retencion = parseFloat((document.getElementById('admin-retencion') || {}).value);
     var arancel = parseFloat((document.getElementById('admin-arancel-inea') || {}).value);
+    var aforoMax = parseInt((document.getElementById('admin-aforo-max') || {}).value, 10);
 
     // Validar que todos sean números >= 0
     var campos = [
       { nombre: 'Tasa BCV', valor: tasa },
       { nombre: 'Tarifa Regular', valor: tarifaReg },
       { nombre: 'Tarifa Medio Pasaje', valor: tarifaMedio },
+      { nombre: 'Tarifa Visitante/Turista', valor: isNaN(tarifaTur) ? tarifaReg : tarifaTur },
       { nombre: 'Tarifa Exonerado', valor: tarifaExo },
       { nombre: 'Retención Asotransmar', valor: retencion },
-      { nombre: 'Arancel INEA', valor: arancel }
+      { nombre: 'Arancel INEA', valor: arancel },
+      { nombre: 'Aforo Máximo INEA', valor: isNaN(aforoMax) ? 160 : aforoMax }
     ];
 
     for (var i = 0; i < campos.length; i++) {
@@ -132,9 +199,11 @@ ASOTRANSMAR.Settlement = {
     settings.tasa_bcv = tasa;
     settings.tarifa_reg_usd = tarifaReg;
     settings.tarifa_medio_usd = tarifaMedio;
+    settings.tarifa_tur_usd = isNaN(tarifaTur) ? tarifaReg : tarifaTur;
     settings.tarifa_exo_usd = tarifaExo;
     settings.retencion_asotransmar = retencion;
     settings.arancel_inea = arancel;
+    settings.capacidad_max_inea = isNaN(aforoMax) ? 160 : aforoMax;
     settings.fecha_tasa = ASOTRANSMAR.Utils.today();
     ASOTRANSMAR.Storage.saveSettings(settings);
 
@@ -317,7 +386,42 @@ ASOTRANSMAR.Settlement = {
     var embarcacionesStr = Object.keys(embarcaciones).join(', ') || '—';
     var horasStr = horasZarpe.join(', ') || '—';
 
-    // ---- Renderizar tarjeta de liquidación ----
+    // Guardar los datos calculados para exportación fiel a PDF
+    this.lastCalculo = {
+      fecha: fecha,
+      fechaDisplay: fechaDisplay,
+      zarpesSeleccionados: zarpesSeleccionados,
+      totalPasajeros: totalPasajeros,
+      embarcacionesStr: embarcacionesStr,
+      horasStr: horasStr,
+      tasaUsada: tasaUsada,
+      recaudacionBrutaUSD: recaudacionBrutaUSD,
+      recaudacionBrutaVES: recaudacionBrutaVES,
+      retencionPorcentaje: retencionPorcentaje,
+      retencionUSD: retencionUSD,
+      retencionVES: retencionVES,
+      arancelINEAporPasajero: arancelINEAporPasajero,
+      arancelINEAusd: arancelINEAusd,
+      arancelINEAves: arancelINEAves,
+      netoArmadorUSD: netoArmadorUSD,
+      netoArmadorVES: netoArmadorVES,
+      detallesZarpes: zarpesSeleccionados.map(function(z) {
+        var tz = allTickets.filter(function(t) { return t.zarpeId === z.id; });
+        return {
+          id: z.id,
+          hora: z.hora,
+          origen: z.origen,
+          destino: z.destino,
+          embarcacion: z.embarcacion,
+          capitan: z.capitan || 'Capitán Asignado',
+          pasajeros: tz.length,
+          montoUSD: tz.reduce(function(acc, t) { return acc + (t.monto_usd || 0); }, 0),
+          montoVES: tz.reduce(function(acc, t) { return acc + (t.monto_ves || 0); }, 0)
+        };
+      })
+    };
+
+    // ---- Renderizar tarjeta de liquidación en pantalla ----
     container.innerHTML = '' +
       '<div class="liquidacion-card">' +
         '<div class="liquidacion-header">' +
@@ -377,40 +481,245 @@ ASOTRANSMAR.Settlement = {
   },
 
   /* --------------------------------------------------------
+   *  buildPrintableLiquidacionElement(data)
+   *  Genera un elemento DOM oficial, independiente del tema
+   *  y formateado exactamente para hoja Carta / A4.
+   * ------------------------------------------------------ */
+  buildPrintableLiquidacionElement(data) {
+    var doc = document.createElement('div');
+    doc.style.width = '100%';
+    doc.style.maxWidth = '100%';
+    doc.style.boxSizing = 'border-box';
+    doc.style.margin = '0 auto';
+    doc.style.padding = '14px 18px';
+    doc.style.background = '#ffffff';
+    doc.style.color = '#0f172a';
+    doc.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+    doc.style.lineHeight = '1.4';
+
+    var zarpesRows = '';
+    if (data.detallesZarpes && data.detallesZarpes.length > 0) {
+      data.detallesZarpes.forEach(function(dz, idx) {
+        var bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+        zarpesRows += '' +
+          '<tr style="background: ' + bg + '; border-bottom: 1px solid #cbd5e1; font-size: 10px;">' +
+            '<td style="padding: 6px 8px; text-align: center; font-weight: bold; width: 28px; color: #0f172a; border-right: 1px solid #e2e8f0;">' + (idx + 1) + '</td>' +
+            '<td style="padding: 6px 8px; font-weight: 600; color: #0f172a; width: 65px; text-align: center; border-right: 1px solid #e2e8f0;">' + dz.hora + ' hrs</td>' +
+            '<td style="padding: 6px 8px; color: #334155; border-right: 1px solid #e2e8f0;">' + dz.origen + ' → ' + dz.destino + '</td>' +
+            '<td style="padding: 6px 8px; font-weight: 700; color: #0f172a; border-right: 1px solid #e2e8f0;">' + dz.embarcacion + '</td>' +
+            '<td style="padding: 6px 8px; text-align: center; font-weight: 700; color: #2563eb; width: 75px; border-right: 1px solid #e2e8f0;">' + dz.pasajeros + ' pax</td>' +
+            '<td style="padding: 6px 8px; text-align: right; color: #0f172a; font-weight: 600; width: 85px; border-right: 1px solid #e2e8f0;">' + ASOTRANSMAR.Utils.formatUSD(dz.montoUSD) + '</td>' +
+            '<td style="padding: 6px 8px; text-align: right; font-weight: 700; color: #0f172a; width: 115px;">' + ASOTRANSMAR.Utils.formatVES(dz.montoVES) + '</td>' +
+          '</tr>';
+      });
+    }
+
+    doc.innerHTML = '' +
+      '<div style="border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px;">' +
+        '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+          '<div style="display: flex; align-items: center; gap: 12px;">' +
+            '<div style="font-size: 34px; line-height: 1;">⚓</div>' +
+            '<div>' +
+              '<h1 style="margin: 0; font-size: 19px; font-weight: 900; letter-spacing: -0.02em; color: #0f172a;">ASOTRANSMAR C.A.</h1>' +
+              '<p style="margin: 2px 0 0 0; font-size: 9.5px; font-weight: 700; color: #2563eb; letter-spacing: 0.04em;">ASOCIACIÓN DE TRANSPORTE MARÍTIMO DE COCHE • RIF: J-315369986-9</p>' +
+              '<p style="margin: 1px 0 0 0; font-size: 8.5px; color: #64748b;">Ruta: Muelle La Isleta (Margarita) ↔ San Pedro de Coche • Edo. Nueva Esparta</p>' +
+            '</div>' +
+          '</div>' +
+          '<div style="text-align: right; border-left: 2px solid #e2e8f0; padding-left: 14px;">' +
+            '<div style="display: inline-block; padding: 4px 10px; background: #0f172a; color: #ffffff; font-size: 10px; font-weight: 800; border-radius: 4px; letter-spacing: 0.04em;">' +
+              'COMPROBANTE OFICIAL DE LIQUIDACIÓN' +
+            '</div>' +
+            '<p style="margin: 3px 0 0 0; font-size: 8.5px; color: #475569; font-weight: 600;">Administración, Finanzas y Rendición a Armadores</p>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px;">' +
+        '<table style="width: 100%; border-collapse: collapse; font-size: 10.5px;">' +
+          '<tr>' +
+            '<td style="padding: 3px 6px; width: 25%;"><span style="color: #64748b; font-size: 8.5px; text-transform: uppercase; font-weight: bold; display: block;">Fecha de Liquidación:</span><strong style="color: #0f172a;">' + data.fechaDisplay + '</strong></td>' +
+            '<td style="padding: 3px 6px; width: 25%;"><span style="color: #64748b; font-size: 8.5px; text-transform: uppercase; font-weight: bold; display: block;">Embarcación(es):</span><strong style="color: #0f172a;">' + data.embarcacionesStr + '</strong></td>' +
+            '<td style="padding: 3px 6px; width: 25%;"><span style="color: #64748b; font-size: 8.5px; text-transform: uppercase; font-weight: bold; display: block;">Zarpes Liquidados:</span><strong style="color: #2563eb;">' + data.horasStr + '</strong></td>' +
+            '<td style="padding: 3px 6px; width: 25%;"><span style="color: #64748b; font-size: 8.5px; text-transform: uppercase; font-weight: bold; display: block;">Tasa Oficial BCV:</span><strong style="color: #059669;">' + data.tasaUsada.toFixed(2) + ' VES/USD</strong></td>' +
+          '</tr>' +
+          '<tr>' +
+            '<td style="padding: 4px 6px 2px 6px;"><span style="color: #64748b; font-size: 8.5px; text-transform: uppercase; font-weight: bold; display: block;">Total Pasajeros:</span><strong style="color: #2563eb;">' + data.totalPasajeros + ' Pax Transportados</strong></td>' +
+            '<td style="padding: 4px 6px 2px 6px;"><span style="color: #64748b; font-size: 8.5px; text-transform: uppercase; font-weight: bold; display: block;">Retención Asotransmar:</span><strong style="color: #0f172a;">' + data.retencionPorcentaje.toFixed(1) + '% s/ Recaudación</strong></td>' +
+            '<td style="padding: 4px 6px 2px 6px;"><span style="color: #64748b; font-size: 8.5px; text-transform: uppercase; font-weight: bold; display: block;">Arancel Portuario INEA:</span><strong style="color: #0f172a;">' + ASOTRANSMAR.Utils.formatUSD(data.arancelINEAporPasajero) + ' / pax</strong></td>' +
+            '<td style="padding: 4px 6px 2px 6px;"><span style="color: #64748b; font-size: 8.5px; text-transform: uppercase; font-weight: bold; display: block;">Estado de Conciliación:</span><strong style="color: #059669;">PROCESADO Y APROBADO</strong></td>' +
+          '</tr>' +
+        '</table>' +
+      '</div>' +
+
+      (zarpesRows ? '' +
+        '<div style="margin-bottom: 14px;">' +
+          '<div style="font-size: 10px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 5px; letter-spacing: 0.03em;">Desglose de Zarpes Incluidos:</div>' +
+          '<table style="width: 100%; border-collapse: collapse; border: 1.5px solid #cbd5e1;">' +
+            '<thead>' +
+              '<tr style="background: #0f172a; color: #ffffff; font-size: 9px; text-transform: uppercase;">' +
+                '<th style="padding: 6px 8px; width: 28px; text-align: center; border-right: 1px solid #334155; color: #ffffff;">N°</th>' +
+                '<th style="padding: 6px 8px; text-align: center; width: 65px; border-right: 1px solid #334155; color: #ffffff;">Hora</th>' +
+                '<th style="padding: 6px 8px; text-align: left; border-right: 1px solid #334155; color: #ffffff;">Ruta</th>' +
+                '<th style="padding: 6px 8px; text-align: left; border-right: 1px solid #334155; color: #ffffff;">Nave</th>' +
+                '<th style="padding: 6px 8px; text-align: center; width: 75px; border-right: 1px solid #334155; color: #ffffff;">Pasajeros</th>' +
+                '<th style="padding: 6px 8px; text-align: right; width: 85px; border-right: 1px solid #334155; color: #ffffff;">Total USD</th>' +
+                '<th style="padding: 6px 8px; text-align: right; width: 115px; color: #ffffff;">Total VES</th>' +
+              '</tr>' +
+            '</thead>' +
+            '<tbody>' +
+              zarpesRows +
+            '</tbody>' +
+          '</table>' +
+        '</div>' : '') +
+
+      '<div style="margin-bottom: 16px;">' +
+        '<div style="font-size: 10px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 5px; letter-spacing: 0.03em;">Conciliación Contable y Deducciones Reglamentarias:</div>' +
+        '<table style="width: 100%; border-collapse: collapse; border: 1.5px solid #cbd5e1; font-size: 10.5px;">' +
+          '<thead>' +
+            '<tr style="background: #334155; color: #ffffff; font-size: 9px; text-transform: uppercase;">' +
+              '<th style="padding: 6px 10px; text-align: left;">CONCEPTO FINANCIERO</th>' +
+              '<th style="padding: 6px 10px; text-align: left; width: 170px;">BASE DE CÁLCULO</th>' +
+              '<th style="padding: 6px 10px; text-align: right; width: 110px;">MONTO (USD)</th>' +
+              '<th style="padding: 6px 10px; text-align: right; width: 130px;">MONTO (VES)</th>' +
+            '</tr>' +
+          '</thead>' +
+          '<tbody>' +
+            '<tr style="background: #ffffff; border-bottom: 1px solid #e2e8f0;">' +
+              '<td style="padding: 7px 10px; font-weight: 700; color: #0f172a;">(+) Recaudación Bruta en Taquilla</td>' +
+              '<td style="padding: 7px 10px; color: #475569;">100% Boletos Emitidos</td>' +
+              '<td style="padding: 7px 10px; text-align: right; font-weight: 700; color: #0f172a;">' + ASOTRANSMAR.Utils.formatUSD(data.recaudacionBrutaUSD) + '</td>' +
+              '<td style="padding: 7px 10px; text-align: right; font-weight: 700; color: #0f172a;">' + ASOTRANSMAR.Utils.formatVES(data.recaudacionBrutaVES) + '</td>' +
+            '</tr>' +
+            '<tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">' +
+              '<td style="padding: 7px 10px; color: #dc2626;">(-) Retención Estatutaria ASOTRANSMAR</td>' +
+              '<td style="padding: 7px 10px; color: #64748b;">' + data.retencionPorcentaje.toFixed(1) + '% de ingresos brutos</td>' +
+              '<td style="padding: 7px 10px; text-align: right; color: #dc2626; font-weight: 600;">-' + ASOTRANSMAR.Utils.formatUSD(data.retencionUSD) + '</td>' +
+              '<td style="padding: 7px 10px; text-align: right; color: #dc2626; font-weight: 600;">-' + ASOTRANSMAR.Utils.formatVES(data.retencionVES) + '</td>' +
+            '</tr>' +
+            '<tr style="background: #ffffff; border-bottom: 1px solid #e2e8f0;">' +
+              '<td style="padding: 7px 10px; color: #dc2626;">(-) Arancel Portuario INEA</td>' +
+              '<td style="padding: 7px 10px; color: #64748b;">' + data.totalPasajeros + ' Pax × ' + ASOTRANSMAR.Utils.formatUSD(data.arancelINEAporPasajero) + '</td>' +
+              '<td style="padding: 7px 10px; text-align: right; color: #dc2626; font-weight: 600;">-' + ASOTRANSMAR.Utils.formatUSD(data.arancelINEAusd) + '</td>' +
+              '<td style="padding: 7px 10px; text-align: right; color: #dc2626; font-weight: 600;">-' + ASOTRANSMAR.Utils.formatVES(data.arancelINEAves) + '</td>' +
+            '</tr>' +
+            '<tr style="background: #f1f5f9; border-top: 1.5px solid #cbd5e1; font-size: 10px; font-weight: 600;">' +
+              '<td colspan="2" style="padding: 6px 10px; color: #475569;">TOTAL DEDUCCIONES REGLAMENTARIAS:</td>' +
+              '<td style="padding: 6px 10px; text-align: right; color: #dc2626;">-' + ASOTRANSMAR.Utils.formatUSD(data.retencionUSD + data.arancelINEAusd) + '</td>' +
+              '<td style="padding: 6px 10px; text-align: right; color: #dc2626;">-' + ASOTRANSMAR.Utils.formatVES(data.retencionVES + data.arancelINEAves) + '</td>' +
+            '</tr>' +
+            '<tr style="background: #ecfdf5; border-top: 2px solid #059669; border-bottom: 2px solid #059669;">' +
+              '<td colspan="2" style="padding: 9px 10px; font-size: 12px; font-weight: 900; color: #065f46;">' +
+                'NETO A PAGAR AL ARMADOR / PROPIETARIO:' +
+              '</td>' +
+              '<td style="padding: 9px 10px; text-align: right; font-size: 13.5px; font-weight: 900; color: #059669;">' +
+                ASOTRANSMAR.Utils.formatUSD(data.netoArmadorUSD) +
+              '</td>' +
+              '<td style="padding: 9px 10px; text-align: right; font-size: 13.5px; font-weight: 900; color: #059669;">' +
+                ASOTRANSMAR.Utils.formatVES(data.netoArmadorVES) +
+              '</td>' +
+            '</tr>' +
+          '</tbody>' +
+        '</table>' +
+      '</div>' +
+
+      '<div style="margin-top: 22px; padding-top: 14px; border-top: 1.5px solid #cbd5e1; page-break-inside: avoid; break-inside: avoid;">' +
+        '<p style="font-size: 8.5px; color: #64748b; margin: 0 0 20px 0; text-align: center; font-style: italic;">' +
+          'Certifico que los cálculos y deducciones contenidos en la presente liquidación corresponden fielmente a los boletos despachados y a los acuerdos estatutarios de ASOTRANSMAR C.A., dándose formal descargo de pago a la entrega de los fondos.' +
+        '</p>' +
+        '<table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 9.5px;">' +
+          '<tr>' +
+            '<td style="width: 33%; padding: 0 12px; vertical-align: top;">' +
+              '<div style="border-top: 1.5px solid #0f172a; padding-top: 4px;">' +
+                '<strong style="display: block; font-size: 9.5px; color: #0f172a;">Armador / Propietario</strong>' +
+                '<span style="font-size: 8.5px; color: #64748b;">Firma, C.I. y Huella</span>' +
+              '</div>' +
+            '</td>' +
+            '<td style="width: 33%; padding: 0 12px; vertical-align: top;">' +
+              '<div style="border-top: 1.5px solid #0f172a; padding-top: 4px;">' +
+                '<strong style="display: block; font-size: 9.5px; color: #0f172a;">Gerencia de Administración</strong>' +
+                '<span style="font-size: 8.5px; color: #64748b;">ASOTRANSMAR C.A.</span>' +
+              '</div>' +
+            '</td>' +
+            '<td style="width: 33%; padding: 0 12px; vertical-align: top;">' +
+              '<div style="border-top: 1.5px solid #0f172a; padding-top: 4px;">' +
+                '<strong style="display: block; font-size: 9.5px; color: #0f172a;">Auditoría / Control Interno</strong>' +
+                '<span style="font-size: 8.5px; color: #64748b;">Conforme y Registrado</span>' +
+              '</div>' +
+            '</td>' +
+          '</tr>' +
+        '</table>' +
+        '<div style="margin-top: 14px; text-align: right; font-size: 8px; color: #94a3b8;">' +
+          'Comprobante contable emitido por ASOTRANSMAR vs 4.0 • ' + new Date().toLocaleString('es-VE') +
+        '</div>' +
+      '</div>';
+
+    return doc;
+  },
+
+  /* --------------------------------------------------------
    *  imprimirLiquidacion()
-   *  Exporta la liquidación a PDF o usa window.print()
+   *  Exporta la liquidación a PDF con html2pdf oficial
    * ------------------------------------------------------ */
   imprimirLiquidacion() {
-    var container = document.getElementById('admin-liquidacion-result');
-    if (!container || !container.innerHTML.trim()) {
+    if (!this.lastCalculo) {
+      this.calcularLiquidacion();
+    }
+
+    if (!this.lastCalculo) {
       ASOTRANSMAR.Utils.showToast('Primero debe calcular una liquidación', 'error');
       return;
     }
 
-    // Obtener datos para el nombre del archivo
-    var fecha = ((document.getElementById('admin-liquidacion-fecha') || {}).value || 'fecha').replace(/-/g, '');
-    var embarcacionText = container.querySelector('.liquidacion-row .value');
-    var embarcacion = embarcacionText ? embarcacionText.textContent.replace(/\s/g, '_').replace(/[,]/g, '') : 'embarcacion';
-    var filename = 'Liquidacion_' + embarcacion + '_' + fecha + '.pdf';
+    ASOTRANSMAR.Utils.showToast('Generando PDF oficial de liquidación...', 'info');
 
-    // Intentar usar html2pdf.js si está disponible
+    var printableDoc = this.buildPrintableLiquidacionElement(this.lastCalculo);
+
+    var fechaFile = (this.lastCalculo.fecha || 'fecha').replace(/-/g, '');
+    var embFile = (this.lastCalculo.embarcacionesStr || 'embarcacion').replace(/\s/g, '_').replace(/[,]/g, '');
+    var filename = 'Liquidacion_' + embFile + '_' + fechaFile + '.pdf';
+
+    // Desactivar scroll suave temporalmente y posicionar en (0, 0) para captura exacta
+    const htmlEl = document.documentElement;
+    const prevBehavior = htmlEl.style.scrollBehavior;
+    const prevX = window.pageXOffset || window.scrollX || 0;
+    const prevY = window.pageYOffset || window.scrollY || 0;
+    htmlEl.style.scrollBehavior = 'auto';
+    window.scrollTo(0, 0);
+
+    const restoreScroll = function() {
+      window.scrollTo(prevX, prevY);
+      htmlEl.style.scrollBehavior = prevBehavior;
+    };
+
     if (typeof html2pdf !== 'undefined') {
       var opt = {
-        margin: 10,
+        margin: [10, 10, 10, 10],
         filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' }
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          scrollX: 0,
+          scrollY: 0,
+          logging: false
+        },
+        jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
-      html2pdf().set(opt).from(container).save().then(function() {
-        ASOTRANSMAR.Utils.showToast('PDF de liquidación generado exitosamente', 'success');
-      }).catch(function(err) {
-        console.error('Error generando PDF de liquidación:', err);
-        ASOTRANSMAR.Utils.showToast('Error al generar el PDF', 'error');
-      });
+
+      setTimeout(function() {
+        html2pdf().set(opt).from(printableDoc).save().then(function() {
+          restoreScroll();
+          ASOTRANSMAR.Utils.showToast('PDF de liquidación generado exitosamente', 'success');
+        }).catch(function(err) {
+          restoreScroll();
+          console.error('Error generando PDF de liquidación:', err);
+          window.print();
+        });
+      }, 60);
     } else {
-      // Fallback: imprimir con el navegador
-      ASOTRANSMAR.Utils.showToast('Abriendo ventana de impresión...', 'info');
+      restoreScroll();
       window.print();
     }
   }
